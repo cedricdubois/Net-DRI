@@ -1,4 +1,4 @@
-## Domain Registry Interface, CNNIC CND (Chinese Domain Name) EPP Charge Extension
+## Domain Registry Interface, CNNIC CDN (Chinese Domain Name) EPP Extension
 ##
 ## Copyright (c) 2014 Patrick Mevzek <netdri@dotandco.com>. All rights reserved.
 ##           (c) 2014 Michael Holloway <michael@thedarkwinter.com>. All rights reserved.
@@ -26,7 +26,7 @@ use Data::Dumper;
 
 =head1 NAME
 
-Net::DRI::Protocol::EPP::Extensions::CNNIC::CDN - CNNIC CND (Chinese Domain Name)
+Net::DRI::Protocol::EPP::Extensions::CNNIC::CDN - CNNIC CDN (Chinese Domain Name)
 
 =head1 DESCRIPTION
 

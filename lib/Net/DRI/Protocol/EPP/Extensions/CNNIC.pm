@@ -34,7 +34,7 @@ Additional domain extensions for CNNIC.
 
 ####################################################################################################
 
-sub default_extensions { return qw/GracePeriod SecDNS LaunchPhase CNNIC::CDN/; }
+sub default_extensions { return qw/GracePeriod SecDNS LaunchPhase CNNIC::CDN CNNIC::Registry CNNIC::Contact/; }
 
 ####################################################################################################
 1;
