@@ -34,31 +34,60 @@ Adds the EPP Extension for provisioning and management of Chinese Domain Names (
 
 Base on : http://tools.ietf.org/html/draft-kong-epp-cdn-mapping-00
 
-The CDN is make up of a hash containing the following keys
+=head1 SYNOPSIS
 
-=item ocnd [Punycode Domain Name]
+The CDN  structire is a hash containing the OCDN (original), CSDN (simplified), TCDN (traditional), and VCDNs (others) and is returned in the response from most commads such as domain_info in the below format with both ACE and IDNs.
 
-=item scnd
+ $rc=$dri->domain_info('xn--fsq270a.xn--fiqs8s'); 
+ $dri->get_info('cdn');
 
-=item tcnd [Punycode Domain Name]
+ $cdn = {
+  'ocdn' => {
+    'ace' => 'xn--fsq270a.xn--fiqs8s',
+    'idn' => "\x{5b9e}\x{4f8b}.\x{4e2d}\x{56fd}"
+  }
+  'scdn' => {
+    'idn' => "\x{5b9e}\x{4f8b}.\x{4e2d}\x{56fd}",
+    'ace' => 'xn--fsq270a.xn--fiqs8s'
+  },
+  'tcdn' => {
+    'ace' => 'xn--fsqz41a.xn--fiqz9s',
+    'idn' => "\x{5be6}\x{4f8b}.\x{4e2d}\x{570b}"
+  },
+  'vcdns' => [
+       {
+         'idn' => "\x{5b9f}\x{4f8b}.\x{4e2d}\x{570b}",
+         'ace' => 'xn--fsq470a.xn--fiqz9s'
+       }
+     ],
+ };
 
-=item vcnd [Punycode Domain Name]
 
+=head2 Commands
 
-=item restore [price for restore]
+The only commands that require the $cnd are create and update.
 
- # check and create
- 
- $rc = $dri->domain_check('premium.tld');
- my $ch = $dri->get_info('charge');
- if ($ch->{create} < '1000000000.00') { 
-   $rc=$dri->domain_create('premium.tld',{pure_create=>1,auth=>{pw=>'2fooBAR'},......,'charge' => $ch}); 
- }
- 
- # info and transfer
- $rc = $dri->domain_info('premium.tld');
- my $ch = $dri->get_info('charge');
- $rc=$dri->domain_transfer_start('premium.tld',{...,'charge' => $ch}); 
+=head3 create
+
+Create only uses a list a VCDNs, but uses the same format as in the reponse structure. You can specify the ACE or IDN versions as you like.
+
+ $rc=$dri->domain_create('xn--fsq270a.xn--fiqs8s',{
+  ...
+  cdn => { vcdns=> [ {idn=>'\x{5b9f}\x{4f8b}.\x{4e2d}\x{570b}'} ] }
+  });
+
+=head3 update
+
+Update uses VCDN lists inn Add and Del methods, and SCDN and TCDN in the Set method.
+
+ $toc=Net::DRI::Data::Changes->new();
+ my $addcdn = { vcdns=> [ {idn=>'\x{5b9f}\x{4f8b}.\x{4e2d}\x{570b}'} ] };
+ my $delcdn = { vcdns=> [ {idn=>'\x{5b9f}\x{4f8b}.\x{4e2d}\x{570b}'} ] };
+ my $chgcdn = { tcdn => { ace=>'xn--fsqz41a.xn--fiqz9s' } };
+ $toc->set('cdn',$chgcdn);
+ $toc->add('cdn',$addcdn);
+ $toc->del('cdn',$delcdn);
+ $rc=$dri->domain_update('xn--fsq270a.xn--fiqs8s',$toc);
  
 
 =head1 SUPPORT
@@ -98,13 +127,13 @@ sub register_commands
 {
  my ($class,$version)=@_;
  my %tmp=(
-           info => [ undef, \&parse],
-           transfer_query => [ undef, \&parse ],
+           info   => [ undef, \&parse],
            create => [ \&create, \&parse ],
            delete => [ undef, \&parse ],
+           renew  => [ undef, \&parse ],
            update => [ \&update, \&parse ],
-           transfer_request => [ \&transfer, \&parse ],
-           renew => [ \&renew, \&parse ],
+           transfer_query => [ undef, \&parse ],
+           transfer_request => [ undef, \&parse ],
         );
 
  return { 'domain' => \%tmp };
@@ -114,20 +143,9 @@ sub setup
 {
  my ($self,$po) = @_;
  $po->ns({'cdn' =>['urn:ietf:params:xml:ns:cdn-1.0','cdn-1.0.xsd']});
- $po->capabilities('domain_update','cnd',['add','rem']);
+ $po->capabilities('domain_update','cdn',['add','del','set']);
 
 }
-## FIXME use the one in Util.pm when its merged!
-sub idn_get_ace_unicode
-{
- my $domain = shift;
- eval { require Net::IDN::Encode; };
- return ($domain,$domain) if $@;
- my $idn = ($domain =~ m/^xn--/) ? Net::IDN::Encode::domain_to_unicode($domain):$domain;
- my $ace = ($domain !~ m/^[a-z0-9.-]/) ? Net::IDN::Encode::domain_to_ascii($domain):$domain; 
- return ($ace,$idn);
-}
-##
 
 ####################################################################################################
 ## Parsing
@@ -143,7 +161,7 @@ sub _parse_cdn
   if ($n =~ m/^([OST]CDN)/)
   {
    $key = substr $n,0,4;
-   ($ace,$idn) = idn_get_ace_unicode($c->textContent());
+   ($ace,$idn) = Net::DRI::Util::idn_get_ace_unicode($c->textContent());
    $cdn->{lc($1)}->{ace} = $ace;
    $cdn->{lc($1)}->{idn} = $idn;
   } elsif ($n eq 'VCDNList')
@@ -152,7 +170,7 @@ sub _parse_cdn
    {
     my ($n2,$c2)=@$el2;
     next if $n2 ne 'VCDN';
-    ($ace,$idn) = idn_get_ace_unicode($c2->textContent());
+    ($ace,$idn) = Net::DRI::Util::idn_get_ace_unicode($c2->textContent());
     $vcdn = { ace=>$ace,idn=>$idn};
     push @vcdns,$vcdn;
    }
@@ -178,58 +196,66 @@ sub parse
 }
 
 ####################################################################################################
-## Build / Parse helprs
+## Building
 
-sub _build_cdn
+sub create
 {
- my $cdn = shift;
-# print Dumper $cdn;
-
- return unless $cdn;
- my @n;
- my ($t,$p,$xmlkey);
- foreach my $key (qw/ocdn ocdn_punycode scdn scdn_punycode tcdn tcdn_punycode/)
- {
-  next unless exists $cdn->{$key};
-  ($t,$p) = split '_',$key;
-  $xmlkey = uc($t) . ($p ? 'Punycode':'');
-  push @n, ['cdn:'.$xmlkey,$cdn->{$key}];
- }
- if (exists $cdn->{vcdns})
- {
-  my @v;
-  foreach my $vcdn (@{$cdn->{vcdns}})
-  {
-   push @v, ['cdn:'.'VCDN',$vcdn->{'vcdn'}] if exists $vcdn->{'vcdn'};
-   push @v, ['cdn:'.'VCDNPunycode',$vcdn->{'vcdn_punycode'}] if exists $vcdn->{'vcdn_punycode'};
-  }
-  push @n, ['cdn:VCDNList',@v];
- }
- print Dumper @n;
- return @n;
-}
-
-sub transform_build
-{
- my ($epp,$domain,$rd,$cmd)=@_;
+ my ($epp,$domain,$rd)=@_;
  my $mes=$epp->message();
- return unless Net::DRI::Util::has_key($rd,'cdn'); 
- my @n = _build_cdn($rd->{'cdn'});
+ return unless Net::DRI::Util::has_key($rd,'cdn') && ref $rd->{cdn} eq 'HASH';
+ Net::DRI::Exception::usererr_invalid_parameters('cdn should be hash with a vcdns list of hashes containing either ace or idn key') if (exists $rd->{cdn}->{vcdns} && ref $rd->{cdn}->{vcdns} ne 'ARRAY');
+ return unless exists $rd->{cdn}->{vcdns};
+ my (@n,@v,$ace,$idn);
+ foreach my $vcdn (@{$rd->{cdn}->{vcdns}})
+ {
+  Net::DRI::Exception::usererr_invalid_parameters('vcdns list should containt hashes with either ace or idn key') unless exists $vcdn->{ace} || exists $vcdn->{idn};
+  ($ace,$idn) = Net::DRI::Util::idn_get_ace_unicode( (exists $vcdn->{ace} ? $vcdn->{ace} : $vcdn->{idn}) );
+  push @v, ['cdn:'.'VCDN',$idn] if $idn;
+ }
+ push @n, ['cdn:VCDNList',@v] if @v;
  return unless @n;
- my $eid=$mes->command_extension_register('cdn',$cmd);
+ my $eid=$mes->command_extension_register('cdn','create');
  $mes->command_extension($eid,\@n);
- print Dumper $eid;
  return;
 }
 
-sub create { transform_build(@_,'create'); }
-sub transfer { transform_build(@_,'transfer'); }
-sub renew { transform_build(@_,'renew'); }
-
 sub update {
-   my ($epp,$domain,$todo)=@_;
-   return unless my $ch = $todo->set('charge');
-   transform_build($epp,$domain,{'charge' => $ch},'restore'); 
+ my ($epp,$domain,$todo)=@_;
+ my $mes=$epp->message();
+ my (@n,$ace,$idn);
+
+ ## add/del : vcdns
+ foreach my $func (qw /add del/) {
+  next unless my $chg = $todo->$func('cdn');
+  next unless exists $chg->{vcdns};
+  my @f = ();
+  foreach my $vcdn (@{$chg->{vcdns}})
+  {
+   Net::DRI::Exception::usererr_invalid_parameters($func. ' vcdns list should containt hashes with either ace or idn key') unless exists $vcdn->{ace} || exists $vcdn->{idn};
+   ($ace,$idn) = Net::DRI::Util::idn_get_ace_unicode( (exists $vcdn->{ace} ? $vcdn->{ace} : $vcdn->{idn}) );
+   push @f, ['cdn:'.'VCDN',$idn] if $idn;
+  }
+  push @n,['cdn:'.($func eq 'add'?'add':'rem'),@f] if @f;
+ }
+
+ ## set : scdn and tcdn
+ if (my $chg = $todo->set('cdn'))
+ {
+  my @f = ();
+  foreach my $key (qw/scdn tcdn/)
+  {
+   next unless exists $chg->{$key};
+   Net::DRI::Exception::usererr_invalid_parameters($key . ' should be a hash with either ace or idn key') unless exists $chg->{$key}->{ace} || exists $chg->{$key}->{idn};
+   ($ace,$idn) = Net::DRI::Util::idn_get_ace_unicode( (exists $chg->{$key}->{ace} ? $chg->{$key}->{ace} : $chg->{$key}->{idn}) );
+   push @f, ['cdn:'.uc($key),$idn] if $idn;
+  }
+  push @n,['cdn:chg',@f] if @f;
+ }
+
+ return unless @n;
+ my $eid=$mes->command_extension_register('cdn','update');
+ $mes->command_extension($eid,\@n);
+ return;
 }
 
 1;
