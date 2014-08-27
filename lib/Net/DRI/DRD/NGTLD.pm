@@ -457,7 +457,9 @@ Contended TLD's not included
 
  return {
      bep_type => undef, # TODO: check this
-     tlds => ['xn--io0a7i','xn--1qqw23a','xn--xhq521b','xn--55qx5d'],
+     tlds => ['xn--io0a7i','xn--1qqw23a','xn--xhq521b','xn--55qx5d','xn--fiqs8s'],
+     transport_protocol_default => ['Net::DRI::Transport::Socket',{},'Net::DRI::Protocol::EPP::Extensions::CNNIC',{}],
+     whois_server => (defined $tld && $tld =~ m/\w+/ ? 'whois.nic.' . $tld : undef), ## FIXME check this and test whois?
    } if $bep eq 'cnnic';
 
 =pod
