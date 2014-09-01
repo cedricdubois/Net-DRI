@@ -70,9 +70,9 @@ sub register_commands
 {
  my ($class,$version)=@_;
  my %tmp=(
-           create   => [ \&create, \&parse],
-           update   => [ \&update, \&parse],
-           info   => [ undef, \&parse],
+           create   => [ \&create, undef ],
+           update   => [ \&update, undef ],
+           info     => [ undef, \&parse],
         );
  return { 'contact' => \%tmp };
 }
@@ -91,11 +91,12 @@ sub parse
  my ($po,$otype,$oaction,$oname,$rinfo)=@_;
  my $mes=$po->message();
  return unless my $data=$mes->get_extension($mes->ns('cnnic-contact'),'infData');
+ my $obj=$rinfo->{contact}->{$oname}->{self};
  foreach my $el (Net::DRI::Util::xml_list_children($data)) 
  {
   my ($n,$c)=@$el;
-  $rinfo->{$otype}->{$oname}->{type} = $c->getAttribute('type') if $n eq 'contact' && $c->hasAttribute('type');
-  $rinfo->{$otype}->{$oname}->{id} = $c->textContent() if $n eq 'contact';
+  $obj->type($c->getAttribute('type')) if $n eq 'contact' && $c->hasAttribute('type');
+  $obj->code($c->textContent()) if $n eq 'contact';
  }
  return;
 }
@@ -108,11 +109,9 @@ sub create
  my ($epp,$c)=@_;
  my $mes=$epp->message();
  return unless $c->type();
- Net::DRI::Exception::usererr_invalid_parameters('contact type should be one of YYZZ,ZZJGDMZ,SFZ,JGZ,HZ,QT') unless $c->type() =~ m/^(?:YYZZ|ZZJGDMZ|SFZ|JGZ|HZ|QT)$/;
- Net::DRI::Exception::usererr_invalid_parameters('contact id should be a string between 1 and 20 characters') unless Net::DRI::Util::xml_is_token($c->type(),1,20);
  my @n;
- push @n,['cnnic-contact:contact',{'type'=>ic($c->type())}, $c->id()];
- my $eid=$mes->command_extension_register('cnnic-registry','create');
+ push @n,['cnnic-contact:contact',{'type'=>($c->type())}, $c->code()];
+ my $eid=$mes->command_extension_register('cnnic-contact','create');
  $mes->command_extension($eid,\@n);
  return;
 }
@@ -120,11 +119,23 @@ sub create
 sub update {
  my ($epp,$domain,$todo)=@_;
  my $mes=$epp->message();
- my (@n,$ace,$idn);
+ my $add=$todo->add('info');
+ my $del=$todo->del('info');
+ my $set=$todo->set('info');
+ my @n;
 
+ push @n,['cnnic-contact:add', ['cnnic-contact:contact',{'type'=>($add->type())}, $add->code()]]
+  if ($add && $add->type() && $add->code());
+
+ push @n,['cnnic-contact:rem', ['cnnic-contact:contact',{'type'=>($del->type())}, $del->code()]]
+  if ($del && $del->type() && $del->code());
+
+ push @n,['cnnic-contact:chg', ['cnnic-contact:contact',{'type'=>($set->type())}, $set->code()]]
+  if ($set && $set->type() && $set->code());
 
  return unless @n;
- my $eid=$mes->command_extension_register('cdn','update');
+
+ my $eid=$mes->command_extension_register('cnnic-contact','update');
  $mes->command_extension($eid,\@n);
  return;
 }

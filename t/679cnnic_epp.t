@@ -10,7 +10,7 @@ use DateTime::Duration;
 use Data::Dumper;
 
 
-use Test::More tests => 33;
+use Test::More tests => 48;
 eval { no warnings; require Test::LongString; Test::LongString->import(max => 100); $Test::LongString::Context=50; };
 if ( $@ ) { no strict 'refs'; *{'main::is_string'}=\&main::is; }
 
@@ -29,12 +29,54 @@ $dri->add_registry('NGTLD',{provider=>'cnnic'});
 $dri->target('cnnic')->add_current_profile('p1','epp',{f_send=>\&mysend,f_recv=>\&myrecv});
 
 my $rc;
-my $s;
-my $d;
-my ($dh,$command,$cdn,@c,$toc,$cs,$c1,$c2);
+my ($dh,$command,$cdn,@c,$toc,$c1,$c2,$cr,$h);
 
 ################################################################################
-### Contact Operations
+### Registry And Contact Extensions
+
+# Contact create
+$c1 = $dri->local_object('contact');
+$c1->srid('abcde')->name('abc')->org('abc.org')->street(['123 d street'])->city('reston')->pc(20194)->sp('NY')->cc('US')->fax('+1.2345678901x1234')->email('xxx@yyy.com')->auth({pw => 123456});
+$c1->type('SFZ');
+$c1->code('110101190001010001');
+$rc=$dri->contact_create($c1,{registry=>'cnnic'});
+is($R1,$E1.'<command><create><contact:create xmlns:contact="urn:ietf:params:xml:ns:contact-1.0" xsi:schemaLocation="urn:ietf:params:xml:ns:contact-1.0 contact-1.0.xsd"><contact:id>abcde</contact:id><contact:postalInfo type="loc"><contact:name>abc</contact:name><contact:org>abc.org</contact:org><contact:addr><contact:street>123 d street</contact:street><contact:city>reston</contact:city><contact:sp>NY</contact:sp><contact:pc>20194</contact:pc><contact:cc>US</contact:cc></contact:addr></contact:postalInfo><contact:postalInfo type="int"><contact:name>abc</contact:name><contact:org>abc.org</contact:org><contact:addr><contact:street>123 d street</contact:street><contact:city>reston</contact:city><contact:sp>NY</contact:sp><contact:pc>20194</contact:pc><contact:cc>US</contact:cc></contact:addr></contact:postalInfo><contact:fax x="1234">+1.2345678901</contact:fax><contact:email>xxx@yyy.com</contact:email><contact:authInfo><contact:pw>123456</contact:pw></contact:authInfo></contact:create></create><extension><cnnic-registry:create xmlns:cnnic-registry="urn:ietf:params:xml:ns:cnnic-registry-1.0" xsi:schemaLocation="urn:ietf:params:xml:ns:cnnic-registry-1.0 cnnic-registry-1.0.xsd"><cnnic-registry:registry>cnnic</cnnic-registry:registry></cnnic-registry:create><cnnic-contact:create xmlns:cnnic-contact="urn:ietf:params:xml:ns:cnnic-contact-1.0" xsi:schemaLocation="urn:ietf:params:xml:ns:cnnic-contact-1.0 cnnic-contact-1.0.xsd"><cnnic-contact:contact type="SFZ">110101190001010001</cnnic-contact:contact></cnnic-contact:create></extension><clTRID>ABC-12345</clTRID></command>'.$E2,'contact_create build_xml');
+
+# Contact update
+$c2 = $c1->clone();
+$c2->type('JGZ');
+$c2->code('55555555');
+$toc = $dri->local_object('changes');
+$toc->set('info',$c2);
+$rc=$dri->contact_update($c1,$toc);
+is($R1,$E1.'<command><update><contact:update xmlns:contact="urn:ietf:params:xml:ns:contact-1.0" xsi:schemaLocation="urn:ietf:params:xml:ns:contact-1.0 contact-1.0.xsd"><contact:id>abcde</contact:id><contact:chg><contact:postalInfo type="loc"><contact:name>abc</contact:name><contact:org>abc.org</contact:org><contact:addr><contact:street>123 d street</contact:street><contact:city>reston</contact:city><contact:sp>NY</contact:sp><contact:pc>20194</contact:pc><contact:cc>US</contact:cc></contact:addr></contact:postalInfo><contact:postalInfo type="int"><contact:name>abc</contact:name><contact:org>abc.org</contact:org><contact:addr><contact:street>123 d street</contact:street><contact:city>reston</contact:city><contact:sp>NY</contact:sp><contact:pc>20194</contact:pc><contact:cc>US</contact:cc></contact:addr></contact:postalInfo><contact:fax x="1234">+1.2345678901</contact:fax><contact:email>xxx@yyy.com</contact:email><contact:authInfo><contact:pw>123456</contact:pw></contact:authInfo></contact:chg></contact:update></update><extension><cnnic-contact:update xmlns:cnnic-contact="urn:ietf:params:xml:ns:cnnic-contact-1.0" xsi:schemaLocation="urn:ietf:params:xml:ns:cnnic-contact-1.0 cnnic-contact-1.0.xsd"><cnnic-contact:chg><cnnic-contact:contact type="JGZ">55555555</cnnic-contact:contact></cnnic-contact:chg></cnnic-contact:update></extension><clTRID>ABC-12345</clTRID></command>'.$E2,'contact_updatre nexus build_xml');
+
+# Contact info
+$R2 = $E1 . '<response>'.r().'<resData><contact:infData xmlns:contact="urn:ietf:params:xml:ns:contact-1.0"><contact:id>abcde</contact:id></contact:infData></resData><extension><cnnic-registry:infData xmlns:cnnic-registry="urn:ietf:params:xml:ns:cnnic-registry-1.0" xsi:schemaLocation="urn:ietf:params:xml:ns:cnnic-registry-1.0 cnnic-registry-1.0.xsd"><cnnic-registry:registry>cnnic</cnnic-registry:registry></cnnic-registry:infData><cnnic-contact:infData xmlns:cnnic-contact="urn:ietf:params:xml:ns:cnnic-contact-1.0" xsi:schemaLocation="urn:ietf:params:xml:ns:cnnic-contact-1.0 cnnic-contact-1.0.xsd"><cnnic-contact:contact type="SFZ">110101190001010001</cnnic-contact:contact></cnnic-contact:infData></extension>' . $TRID . '</response>' . $E2;
+$rc = $dri->contact_info($dri->local_object('contact')->srid('abcde'));
+is_string($R1,$E1 . '<command><info><contact:info xmlns:contact="urn:ietf:params:xml:ns:contact-1.0" xsi:schemaLocation="urn:ietf:params:xml:ns:contact-1.0 contact-1.0.xsd"><contact:id>abcde</contact:id></contact:info></info><clTRID>ABC-12345</clTRID></command>' . $E2,'contact_info build');
+$cr=$dri->get_info('self');
+isa_ok($cr,'Net::DRI::Data::Contact::CNNIC','contact_info get_info (self)');
+is($cr->type(),'SFZ','contact_info get_info (type)');
+is($cr->code(),'110101190001010001','contact_info get_info (code)');
+is($dri->get_info('registry'),'cnnic','contact_info get_info (registry)');
+
+# Host create
+$R2=$E1.'<response>'.r().'<resData><host:creData xmlns:host="urn:ietf:params:xml:ns:host-1.0" xsi:schemaLocation="urn:ietf:params:xml:ns:host-1.0 host-1.0.xsd"><host:name>ns101.example1.com</host:name><host:crDate>1999-04-03T22:00:00.0Z</host:crDate></host:creData></resData>'.$TRID.'</response>'.$E2;
+$h = $dri->local_object('hosts')->add('ns101.example1.com',['193.0.2.2','193.0.2.29'],['2000:0:0:0:8:800:200C:417A']);
+$rc=$dri->host_create($h,{registry => 'cnnic'});
+is($R1,$E1.'<command><create><host:create xmlns:host="urn:ietf:params:xml:ns:host-1.0" xsi:schemaLocation="urn:ietf:params:xml:ns:host-1.0 host-1.0.xsd"><host:name>ns101.example1.com</host:name><host:addr ip="v4">193.0.2.2</host:addr><host:addr ip="v4">193.0.2.29</host:addr><host:addr ip="v6">2000:0:0:0:8:800:200C:417A</host:addr></host:create></create><extension><cnnic-registry:create xmlns:cnnic-registry="urn:ietf:params:xml:ns:cnnic-registry-1.0" xsi:schemaLocation="urn:ietf:params:xml:ns:cnnic-registry-1.0 cnnic-registry-1.0.xsd"><cnnic-registry:registry>cnnic</cnnic-registry:registry></cnnic-registry:create></extension><clTRID>ABC-12345</clTRID></command>'.$E2,'host_create build');
+is($dri->get_info('action'),'create','host_create get_info(action)');
+is($dri->get_info('exist'),1,'host_create get_info(exist)');
+
+# Host info
+$R2=$E1.'<response>'.r().'<resData><host:infData xmlns:host="urn:ietf:params:xml:ns:host-1.0" xsi:schemaLocation="urn:ietf:params:xml:ns:host-1.0 host-1.0.xsd"><host:name>ns100.example2.com</host:name><host:roid>NS1_EXAMPLE1-REP</host:roid><host:status s="linked"/><host:status s="clientUpdateProhibited"/><host:addr ip="v4">193.0.2.2</host:addr><host:addr ip="v4">193.0.2.29</host:addr><host:addr ip="v6">2000:0:0:0:8:800:200C:417A</host:addr><host:clID>ClientY</host:clID><host:crID>ClientX</host:crID><host:crDate>1999-04-03T22:00:00.0Z</host:crDate><host:upID>ClientX</host:upID><host:upDate>1999-12-03T09:00:00.0Z</host:upDate><host:trDate>2000-04-08T09:00:00.0Z</host:trDate></host:infData></resData><extension><cnnic-registry:infData xmlns:cnnic-registry="urn:ietf:params:xml:ns:cnnic-registry-1.0" xsi:schemaLocation="urn:ietf:params:xml:ns:cnnic-registry-1.0 cnnic-registry-1.0.xsd"><cnnic-registry:registry>cnnic</cnnic-registry:registry></cnnic-registry:infData></extension>'.$TRID.'</response>'.$E2;
+$rc=$dri->host_info('ns100.example2.com');
+is($R1,$E1.'<command><info><host:info xmlns:host="urn:ietf:params:xml:ns:host-1.0" xsi:schemaLocation="urn:ietf:params:xml:ns:host-1.0 host-1.0.xsd"><host:name>ns100.example2.com</host:name></host:info></info><clTRID>ABC-12345</clTRID></command>'.$E2,'host_info build');
+is($dri->get_info('action'),'info','host_info get_info(action)');
+is($dri->get_info('exist'),1,'host_info get_info(exist)');
+is($dri->get_info('roid'),'NS1_EXAMPLE1-REP','host_info get_info(roid)');
+is($dri->get_info('registry'),'cnnic','contact_info get_info (registry)');
 
 
 ################################################################################
@@ -124,13 +166,7 @@ $rc=$dri->domain_update('xn--fsq270a.xn--fiqs8s',$toc);
 is_string($R1,$E1.'<command><update><domain:update xmlns:domain="urn:ietf:params:xml:ns:domain-1.0" xsi:schemaLocation="urn:ietf:params:xml:ns:domain-1.0 domain-1.0.xsd"><domain:name>xn--fsq270a.xn--fiqs8s</domain:name></domain:update></update><extension><cdn:update xmlns:cdn="urn:ietf:params:xml:ns:cdn-1.0" xsi:schemaLocation="urn:ietf:params:xml:ns:cdn-1.0 cdn-1.0.xsd"><cdn:add><cdn:VCDN>実例.中國</cdn:VCDN></cdn:add><cdn:rem><cdn:VCDN>実例.中國</cdn:VCDN></cdn:rem><cdn:chg><cdn:TCDN>實例.中國</cdn:TCDN></cdn:chg></cdn:update></extension><clTRID>ABC-12345</clTRID></command>'.$E2,'domain_update build');
 is($rc->is_success(),1,'domain_update is is_success');
 
-exit;
-
 ################################################################################
-### Registry And Contact Extensions
-
-
-## TODO
 
 
 exit 0;

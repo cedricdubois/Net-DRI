@@ -26,11 +26,15 @@ use Data::Dumper;
 
 =head1 NAME
 
-Net::DRI::Protocol::EPP::Extensions::CNNIC::Registry - CNNIC Registry Extensions
+Net::DRI::Protocol::EPP::Extensions::CNNIC::Registry - CNNIC Registry Extension
 
 =head1 DESCRIPTION
 
-Adds the EPP Registry extension
+Adds the EPP Registry extension for host and contact operations
+
+ $dri->contact_create($c,{'registry'=>'cnnic'});
+ $dri->host_create($h,{'registry'=>'cnnic'});
+ print $dri->get_info('registry'); # after a contact_info() or host_info()
 
 =head1 SUPPORT
 
@@ -68,16 +72,12 @@ See the LICENSE file that comes with this distribution for more details.
 sub register_commands
 {
  my ($class,$version)=@_;
- my %contact=(
-           create   => [ \&contact_create, \&parse],
-           info   => [ undef, \&parse],
-        );
- my %host=(
-           create   => [ \&host_create, \&parse],
+ my %tmp=(
+           create   => [ \&build, undef ],
            info   => [ undef, \&parse],
         );
 
- return { 'contact' => \%contact, 'host' => \%host };
+ return { 'contact' => \%tmp, 'host' => \%tmp };
 }
 
 sub setup
@@ -96,7 +96,7 @@ sub parse
  foreach my $el (Net::DRI::Util::xml_list_children($data)) 
  {
   my ($n,$c)=@$el;
-  $rinfo->{$otype}->{$oname}->{$n} = $c->textContent() if $n eq 'registry';
+  $rinfo->{$otype}->{$oname}->{registry} = $c->textContent() if $n eq 'registry';
  }
  return;
 }
@@ -104,26 +104,16 @@ sub parse
 ####################################################################################################
 ## Building
 
-sub contact_create
+sub build
 {
- my ($epp,$c)=@_;
+ my ($epp,$c,$rd)=@_;
+ return unless $rd && exists $rd->{registry};
  my $mes=$epp->message();
  my @n;
- push @n,['cnnic-registry:registry',$c->registry()];
+ push @n,['cnnic-registry:registry',$rd->{registry}];
  my $eid=$mes->command_extension_register('cnnic-registry','create');
  $mes->command_extension($eid,\@n);
  return;
 }
 
-# Fixme can I use one create for both?
-sub host_create
-{
- my ($epp,$h)=@_;
- my $mes=$epp->message();
- my @n;
- push @n,['cnnic-registry:registry',$h->registry()];
- my $eid=$mes->command_extension_register('cnnic-registry','create');
- $mes->command_extension($eid,\@n);
- return;
-}
 1;
