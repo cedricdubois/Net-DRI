@@ -247,15 +247,9 @@ alsace aquitaine banque bzh corsica ovh paris
 
 =head2 Afilias
 
- $dri->add_registry('NGTLD',{provider=>'afilias'});
+Afilias operates a shared enveronment for its own TLDs (set provider to 'afilias'), and a separate shared environment for their clients ('afiliassrs').
 
 =head3 Status: Working
-
-=head3 TLDs
-
-info xn--6frz82g black blue kim lgbt lotto meet organic pink red shiksha
-
-Contended TLD's not included
 
 =head3 Custom extensions:
 
@@ -265,9 +259,17 @@ L<Net::DRI::Protocol::EPP::Extensions::Afilias::IPR> urn:afilias:params:xml:ns:i
 
 L<Net::DRI::Protocol::EPP::Extensions::Afilias::Registrar> urn:ietf:params:xml:ns:registrar-1.0
 
-=head3 Notes
+L<Net::DRI::Protocol::EPP::Extensions::Afilias::Price> urn:ietf:params:xml:ns:price-1.0
 
-1. Afilias has extended the .INFO plaform to include these newGTLDs
+=head3 Afilias Own TLDs
+
+Afilias has extended the .INFO plaform to include these newGTLDs
+
+ $dri->add_registry('NGTLD',{provider=>'afilias'}); # own tlds
+
+info xn--6frz82g black blue kim lgbt lotto meet organic pink red shiksha
+
+Contended TLD's not included
 
 =cut
 
@@ -278,33 +280,15 @@ L<Net::DRI::Protocol::EPP::Extensions::Afilias::Registrar> urn:ietf:params:xml:n
      whois_server => 'whois.afilias.net',
    } if $bep eq 'afilias';
 
-
 =pod
 
+=head3 Afilias Client TLDs
 
-=head2 Afilias-SRS
+Afilias SRS has extended the .XXX plaform to include these newGTLDs
 
- $dri->add_registry('NGTLD',{provider=>'afiliasrss'});
-
-=head3 Status: Working
-
-=head3 TLDs
+ $dri->add_registry('NGTLD',{provider=>'afiliassrs'});
 
 xxx xn--3ds443g xn--4gbrim xn--fiq228c5hs xn--kput3i adult creditunion ged global hiv indians ltda onl porn rich storage vegas vote voto
-
-Contended TLD's not included
-
-=head3 Custom extensions:
-
-L<Net::DRI::Protocol::EPP::Extensions::Afilias::IDNLanguage> urn:afilias:params:xml:ns:idn-1.0
-
-L<Net::DRI::Protocol::EPP::Extensions::Afilias::IPR> urn:afilias:params:xml:ns:ipr-1.1
-
-L<Net::DRI::Protocol::EPP::Extensions::Afilias::Registrar> urn:ietf:params:xml:ns:registrar-1.0
-
-=head3 Notes
-
-1. Afilias SRS  has extended the .XXX plaform to include these newGTLDs
 
 =cut
 
@@ -314,7 +298,6 @@ L<Net::DRI::Protocol::EPP::Extensions::Afilias::Registrar> urn:ietf:params:xml:n
      transport_protocol_default => ['Net::DRI::Transport::Socket',{},'Net::DRI::Protocol::EPP::Extensions::AfiliasSRS',{}],
      whois_server => 'whois.afilias.net',
    } if $bep eq 'afiliassrs';
-
 
 =pod
 
