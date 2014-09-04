@@ -28,11 +28,12 @@ sub setup
   idn       => ['urn:afilias:params:xml:ns:idn-1.0','idn-1.0.xsd'],
   oxrs      => ['urn:afilias:params:xml:ns:oxrs-1.1','oxrs-1.1.xsd'],
   registrar => ['urn:ietf:params:xml:ns:registrar-1.0','registrar-1.0.xsd'],
+  price     => ['urn:ietf:params:xml:ns:price-1.0','price-1.0.xsd'],
  });
  return;
 }
 
-sub default_extensions { return qw/GracePeriod SecDNS LaunchPhase Afilias::IPR Afilias::IDNLanguage Afilias::Message Afilias::Registrar/; }
+sub default_extensions { return qw/GracePeriod SecDNS LaunchPhase Afilias::IPR Afilias::IDNLanguage Afilias::Message Afilias::Registrar Afilias::Price/; }
 
 ####################################################################################################
 

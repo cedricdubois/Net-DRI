@@ -5,8 +5,9 @@ use warnings;
 
 use Net::DRI;
 use Net::DRI::Data::Raw;
+use Data::Dumper;
 
-use Test::More tests => 63;
+use Test::More tests => 68;
 
 eval { no warnings; require Test::LongString; Test::LongString->import(max => 100); $Test::LongString::Context=50; };
 if ( $@ ) { no strict 'refs'; *{'main::is_string'}=\&main::is; }
@@ -144,19 +145,22 @@ is($dri->get_info('name'),'example3premium.info','domain_check price info({name 
 is($dri->get_info('exist'),0,'domain_check price info({exist => 0})');
 my $price_ext=$dri->get_info('price_ext'); # get price extension from the data object
 is($price_ext->{'domain'},'example3premium.info','domain_check price info({price_domain => "example3premium.info"})');
-is($price_ext->{'domain_type_attr'},'premium','domain_check price info({price_type_attr => "premium"})');
+is($price_ext->{'premium'},'1','domain_check price info({premium => "1"})');
 is($price_ext->{'currency'},'USD','domain_check price info({price_currency => "USD"})');
-is($price_ext->{'period'},1,'domain_check price info({price_period => 1})');
-is($price_ext->{'period_unit_attr'},'y','domain_check price info({price_unit_attr => "y"})');
-my $pricing_node=$price_ext->{'pricing'};
-is($pricing_node->{'from_attr'},'2014-06-10T04:00:00.0Z','domain_check price info({price_from_attr => "2014-06-10T04:00:00.0Z"})');
-is($pricing_node->{'to_attr'},'2015-06-10T04:00:00.0Z','domain_check price info({price_to_attr => "2015-06-10T04:00:00.0Z"})');
-is($pricing_node->{'amount'}[0],'123.00','domain_check price info({price_pricing_amount => "123.00"})');
-is($pricing_node->{'amount_type_attr'}[0],'transfer','domain_check price info({price_pricing_amount_type_attr => "transfer"})');
-is($pricing_node->{'amount'}[1],'113.00','domain_check price info({price_pricing_amount => "113.00"})');
-is($pricing_node->{'amount_type_attr'}[1],'create','domain_check price info({price_pricing_amount_type_attr => "create"})');
-is($pricing_node->{'amount'}[2],'103.00','domain_check price info({price_pricing_amount => "103.00"})');
-is($pricing_node->{'amount_type_attr'}[2],'renew','domain_check price info({price_pricing_amount_type_attr => "renew"})');
+isa_ok($price_ext->{'duration'},'DateTime::Duration','domain_check price info({duration =>})');
+is($price_ext->{'valid_from'},'2014-06-10T04:00:00','domain_check price info({valid_from => "2014-06-10T04:00:00"})');
+is($price_ext->{'valid_to'},'2015-06-10T04:00:00','domain_check price info({valid_to => "2015-06-10T04:00:00"})');
+is($price_ext->{'create'},'113','domain_check price info({create => ""})');
+is($price_ext->{'renew'},'103','domain_check price info({renew => ""})');
+is($price_ext->{'transfer'},'123','domain_check price info({transfer => ""})');
+# using the standardised methods
+is($dri->get_info('is_premium'),1,'domain_check get_info (is_premium)');
+isa_ok($dri->get_info('price_duration'),'DateTime::Duration','domain_check get_info (price_duration)');
+is($dri->get_info('price_currency'),'USD','domain_check get_info (price_currency) undef');
+is($dri->get_info('create_price'),'113','domain_check get_info (create_price)');
+is($dri->get_info('renew_price'),'103','domain_check get_info (renew_price)');
+is($dri->get_info('transfer_price'),123,'domain_check get_info (transfer_price) undef');
+is($dri->get_info('restore_price'),undef,'domain_check get_info (restore_price) undef');
 
 # Renew
 $R2=$E1.'<response>'.r().'<resData><domain:renData xmlns:domain="urn:ietf:params:xml:ns:domain-1.0" xsi:schemaLocation="urn:ietf:params:xml:ns:domain-1.0 domain-1.0.xsd"><domain:name>example3premium.info</domain:name><domain:exDate>2019-04-03T22:00:00.0Z</domain:exDate></domain:renData></resData><extension><price:renData xmlns:price="urn:afilias:params:xml:ns:price-1.0" xsi:schemaLocation="urn:afilias:params:xml:ns:price-1.0 price-1.0.xsd"><price:domain type="premium">example3premium.info</price:domain></price:renData></extension>'.$TRID.'</response>'.$E2;
@@ -167,7 +171,8 @@ is($dri->get_info('name'),'example3premium.info','domain_renew price info({name 
 is($dri->get_info('exDate'),'2019-04-03T22:00:00','domain_renew price info({exDate => "2019-04-03T22:00:00"})');
 $price_ext=$dri->get_info('price_ext');
 is($price_ext->{'domain'},'example3premium.info','domain_renew price info({price_domain => "example3premium.info"})');
-is($price_ext->{'domain_type_attr'},'premium','domain_renew price({price_type_attr => "premium"})');
+is($price_ext->{'premium'},'1','domain_check price info({premium => "1"})');
+is($dri->get_info('is_premium'),1,'domain_check get_info (is_premium)');
 
 # Transfer
 $R2=$E1.'<response>'.r().'<resData><domain:trnData xmlns:domain="urn:ietf:params:xml:ns:domain-1.0" xsi:schemaLocation="urn:ietf:params:xml:ns:domain-1.0 domain-1.0.xsd"><domain:name>example3premium.info</domain:name><domain:trStatus>pending</domain:trStatus><domain:reID>ClientX</domain:reID><domain:reDate>2014-06-08T22:00:00.0Z</domain:reDate><domain:acID>ClientY</domain:acID><domain:acDate>2014-06-13T22:00:00.0Z</domain:acDate><domain:exDate>2014-09-08T22:00:00.0Z</domain:exDate></domain:trnData></resData><extension><price:trnData xmlns:price="urn:afilias:params:xml:ns:price-1.0" xsi:schemaLocation="urn:afilias:params:xml:ns:price-1.0 price-1.0.xsd"><price:domain type="premium">example3premium.info</price:domain></price:trnData></extension>'.$TRID.'</response>'.$E2;
@@ -183,7 +188,8 @@ is($dri->get_info('acDate'),'2014-06-13T22:00:00','domain_transfer price info({a
 is($dri->get_info('exDate'),'2014-09-08T22:00:00','domain_transfer price info({exDate => "2014-09-08T22:00:00"})');
 $price_ext=$dri->get_info('price_ext');
 is($price_ext->{'domain'},'example3premium.info','domain_renew price info({price_domain => "example3premium.info"})');
-is($price_ext->{'domain_type_attr'},'premium','domain_renew price({price_type_attr => "premium"})');
+is($price_ext->{'premium'},'1','domain_check price info({premium => "1"})');
+is($dri->get_info('is_premium'),1,'domain_check get_info (is_premium)');
 
 # Create - no example available but by the specifications it's the same as renew and transfer only changing the response node <price:creData>
 

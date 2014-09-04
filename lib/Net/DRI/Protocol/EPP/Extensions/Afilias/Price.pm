@@ -22,6 +22,7 @@ use warnings;
 use Net::DRI::Util;
 use Net::DRI::Exception;
 
+
 ####################################################################################################
 
 sub register_commands
@@ -45,53 +46,78 @@ sub setup
   return;
 }
 
+####################################################################################################
+## Price Standardisation
+
+sub set_premium_values {
+ my ($po,$otype,$oaction,$oname,$rinfo)=@_;
+ return unless exists $rinfo->{domain}->{$oname}->{price_ext} && (ref $rinfo->{domain}->{$oname}->{price_ext} eq 'HASH');
+ my $ch = $rinfo->{domain}->{$oname}->{price_ext};
+ $rinfo->{domain}->{$oname}->{is_premium} = $ch->{premium};
+ #$rinfo->{domain}->{$oname}->{price_category} = $ch->{description};
+ $rinfo->{domain}->{$oname}->{price_currency} = $ch->{currency};
+ $rinfo->{domain}->{$oname}->{price_duration} = $ch->{duration};
+ $rinfo->{domain}->{$oname}->{create_price} = $ch->{create};
+ $rinfo->{domain}->{$oname}->{renew_price} = $ch->{renew};
+ $rinfo->{domain}->{$oname}->{restore_price} = $ch->{restore};
+ $rinfo->{domain}->{$oname}->{transfer_price} = $ch->{transfer};
+ return;
+}
+
+####################################################################################################
+
 sub check_parse
 {
   my ($po,$otype,$oaction,$oname,$rinfo)=@_;
   my $mes=$po->message();
-  return unless $mes->is_success();	
+  return unless $mes->is_success();
   my $resdata=$mes->get_extension($mes->ns('price'),'chkData');
   return unless defined $resdata;	
-  my %p;
+
+  my (%p,$this_domain);
   foreach my $el (Net::DRI::Util::xml_list_children($resdata))
   {
     my ($name,$content)=@$el;
-	if ($name eq 'cd')
-	{
-	  foreach my $el2 (Net::DRI::Util::xml_list_children($content))
-	  {
-	    my ($name2,$content2)=@$el2;
-		if ($name2=~m/^(domain|currency|period)$/)
-		{
-		  $p{$1}=$content2->textContent();
-		}
-		$p{'domain_type_attr'}=$content2->getAttribute('type') if $content2->hasAttribute('type');
-		$p{'period_unit_attr'}=$content2->getAttribute('unit') if $content2->hasAttribute('unit');
-		if ($name2 eq 'pricing')
-		{
-		  my %p2;
-		  my (@pricing,@pricing_attr);
-		  foreach my $pricing (Net::DRI::Util::xml_list_children($content2))
-		  {
-		    my ($name_p,$content_p)=@$pricing;
-			if ($name_p eq 'amount')
-			{
-			  push @pricing,$content_p->textContent() if $content_p->getAttribute('type')=~m/^(create|renew|transfer)$/;
-			  push @pricing_attr,$content_p->getAttribute('type') if $content_p->getAttribute('type')=~m/^(create|renew|transfer)$/;
-			}
-		  }
-		  @{$p2{'amount'}}=@pricing;
-		  @{$p2{'amount_type_attr'}}=@pricing_attr;
-		  $p2{'from_attr'}=$content2->getAttribute('from') if $content2->hasAttribute('from');
-		  $p2{'to_attr'}=$content2->getAttribute('to') if $content2->hasAttribute('to');
-		  $p{'pricing'}=\%p2;					
-		}				
-	  }
-	}
-	$rinfo->{domain}->{$oname}->{'price_ext'}=\%p;
+    if ($name eq 'cd')
+    {
+      undef %p;
+      foreach my $el2 (Net::DRI::Util::xml_list_children($content))
+      {
+        my ($name2,$content2)=@$el2;
+        if ($name2 eq 'domain')
+        {
+          $this_domain = $p{'domain'} = $content2->textContent();
+          $p{'premium'} = ($content2->hasAttribute('type') && $content2->getAttribute('type') eq 'premium') ? 1 : 0;
+        }
+        elsif ($name2 eq 'period')
+        {
+          my $unit={y=>'years',m=>'months'}->{$content2->getAttribute('unit')};
+          $p{'duration'} = DateTime::Duration->new($unit => 0+$content2->textContent());
+        }
+        elsif ($name2 eq 'currency')
+        {
+          $p{currency} = $content2->textContent();
+        }
+        if ($name2 eq 'pricing')
+        {
+          foreach my $pricing (Net::DRI::Util::xml_list_children($content2))
+          {
+            my ($name_p,$content_p)=@$pricing;
+            next unless $content_p->hasAttribute('type') && $content_p->getAttribute('type')=~m/^(create|renew|transfer)$/;
+            $p{$1} = 0+$content_p->textContent() if ($name_p eq 'amount');
+          }
+          $p{'valid_from'}=$po->parse_iso8601($content2->getAttribute('from')) if $content2->hasAttribute('from');
+          $p{'valid_to'}=$po->parse_iso8601($content2->getAttribute('to')) if $content2->hasAttribute('to');
+        }				
+        $rinfo->{domain}->{$this_domain}->{'price_ext'}=\%p;
+        set_premium_values($po,$otype,$oaction,$this_domain,$rinfo);
+      }
+    }
   }
   return;
 }
+
+
 
 sub transform_parse
 {
@@ -109,7 +135,8 @@ sub transform_parse
       if ($name eq 'domain')
       {
         $p{'domain'}=$content->textContent();
-        $p{'domain_type_attr'}=$content->getAttribute('type');
+        $p{'premium'} = ($content->hasAttribute('type') && $content->getAttribute('type') eq 'premium') ? 1 : 0;
+        $rinfo->{domain}->{$oname}->{is_premium} = $p{'premium'} if exists $p{'premium'};
       }
     }
     $rinfo->{domain}->{$oname}->{'price_ext'}=\%p;
