@@ -456,8 +456,8 @@ Contended TLD's not included
 =cut
 
  return {
-     bep_type => undef, # TODO: check this
-     tlds => ['xn--io0a7i','xn--1qqw23a','xn--xhq521b','xn--55qx5d','xn--fiqs8s'],
+     bep_type => 2, # shared registry
+     tlds => ['xn--io0a7i','xn--1qqw23a','xn--xhq521b','xn--55qx5d'],
      transport_protocol_default => ['Net::DRI::Transport::Socket',{},'Net::DRI::Protocol::EPP::Extensions::CNNIC',{}],
      factories => [ {'object'=>'contact','factory' => sub { return Net::DRI::Data::Contact::CNNIC->new(@_); } } ],
      requires => [ 'Net::DRI::Data::Contact::CNNIC'],
